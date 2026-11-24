@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ZombieSpawn : MonoBehaviour
@@ -16,34 +15,55 @@ public class ZombieSpawn : MonoBehaviour
     public AudioSource audioSource;
     public AudioClip zombieRoar;
 
+    private bool hasActivated;
+    private Coroutine spawnRoutine;
+
     private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.tag == "Player" || other.gameObject.tag == "Vehicle" )
+        if (hasActivated || (!other.CompareTag("Player") && !other.CompareTag("Vehicle"))) return;
+
+        hasActivated = true;
+
+        if (DangerZone != null) StartCoroutine(dangerZoneTimer());
+        if (audioSource != null && zombieRoar != null) audioSource.PlayOneShot(zombieRoar);
+
+        spawnRoutine = StartCoroutine(EnemySpawner());
+        Destroy(gameObject, 10f);
+
+        BoxCollider trigger = GetComponent<BoxCollider>();
+        if (trigger != null) trigger.enabled = false;
+    }
+
+    private IEnumerator EnemySpawner()
+    {
+        yield return new WaitForSeconds(1f);
+
+        while (true)
         {
-            InvokeRepeating("EnemySpawner", 1f, repeatCycle);
-            StartCoroutine(dangerZoneTimer());
-            Destroy(gameObject, 10f);
-            gameObject.GetComponent<BoxCollider>().enabled = false;
-            audioSource.PlayOneShot(zombieRoar);
+            SpawnZombie(ZombieSpawnPosition1);
+            SpawnZombie(ZombieSpawnPosition2);
+            SpawnZombie(ZombieSpawnPosition3);
+
+            yield return new WaitForSeconds(Mathf.Max(0.1f, repeatCycle));
         }
     }
 
-    private void OnTriggerExit(Collider other)
+    private void SpawnZombie(Transform spawnPoint)
     {
-        gameObject.GetComponent<BoxCollider>().enabled = false;
-    }
-
-    void EnemySpawner()
-    {
-        Instantiate(ZombiePrefab, ZombieSpawnPosition1.position, ZombieSpawnPosition1.rotation);
-        Instantiate(ZombiePrefab, ZombieSpawnPosition2.position, ZombieSpawnPosition2.rotation);
-        Instantiate(ZombiePrefab, ZombieSpawnPosition3.position, ZombieSpawnPosition3.rotation);
+        if (ZombiePrefab == null || spawnPoint == null) return;
+        Instantiate(ZombiePrefab, spawnPoint.position, spawnPoint.rotation);
     }
 
     IEnumerator dangerZoneTimer()
     {
         DangerZone.SetActive(true);
         yield return new WaitForSeconds(5f);
-        DangerZone.SetActive(false);
+
+        if (DangerZone != null) DangerZone.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (spawnRoutine != null) StopCoroutine(spawnRoutine);
     }
 }

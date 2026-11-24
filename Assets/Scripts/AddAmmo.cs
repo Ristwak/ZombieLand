@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class AddAmmo : MonoBehaviour
@@ -16,21 +14,25 @@ public class AddAmmo : MonoBehaviour
     [Header("Health Animation")]
     public Animator animator;
 
+    private bool collected;
+
     private void Update()
     {
-        if(Vector3.Distance(transform.position, rifle.transform.position) < radius)
-        {
-            if(Input.GetKeyDown("f"))
-            {
-                animator.SetBool("Open",true);
-                rifle.mag = ammoToGive;
+        if (collected || rifle == null) return;
 
-                // sound effect
-                audioSource.PlayOneShot(addAmmoSound);
+        if (Vector3.Distance(transform.position, rifle.transform.position) >= radius) return;
+        if (!Input.GetKeyDown(KeyCode.F)) return;
 
+        collected = true;
 
-                Object.Destroy(gameObject,1.5f);
-            }
-        }
+        if (animator != null) animator.SetBool("Open", true);
+
+        // Preserve the original pickup behaviour: set reserve magazines.
+        rifle.mag = Mathf.Max(0, ammoToGive);
+
+        if (audioSource != null && addAmmoSound != null)
+            audioSource.PlayOneShot(addAmmoSound);
+
+        Destroy(gameObject, 1.5f);
     }
 }

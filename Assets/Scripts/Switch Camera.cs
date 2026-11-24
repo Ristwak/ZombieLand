@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class SwitchCamera : MonoBehaviour
@@ -13,48 +11,54 @@ public class SwitchCamera : MonoBehaviour
     [Header("Camera Animator")]
     public Animator animator;
 
-    
-
     private void Update()
     {
-        if (Input.GetButton("Fire2") && Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+        bool aiming = Input.GetButton("Fire2");
+        bool movingForward = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+
+        if (aiming && movingForward)
         {
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("IdleAim", true);
+                animator.SetBool("RifleWalk", true);
+                animator.SetBool("Walk", true);
+            }
 
-            animator.SetBool("Idle", false);
-            animator.SetBool("IdleAim", true);
-            animator.SetBool("RifleWalk", true);
-            animator.SetBool("Walk", true);
-
-
-            TPSCam.SetActive(false);
-            TPSCanvas.SetActive(false);
-            AimCam.SetActive(true);
-            AimCanvas.SetActive(true);
+            SetCameraState(true);
         }
-        else if(Input.GetButton("Fire2"))
+        else if (aiming)
         {
-            animator.SetBool("Idle", false);
-            animator.SetBool("IdleAim", true);
-            animator.SetBool("RifleWalk", false);
-            animator.SetBool("Walk", false);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("IdleAim", true);
+                animator.SetBool("RifleWalk", false);
+                animator.SetBool("Walk", false);
+            }
 
-
-            TPSCam.SetActive(false);
-            TPSCanvas.SetActive(false);
-            AimCam.SetActive(true);
-            AimCanvas.SetActive(true);
+            SetCameraState(true);
         }
         else
         {
-            animator.SetBool("Idle", true);
-            animator.SetBool("IdleAim", false);
-            animator.SetBool("RifleWalk", false);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", true);
+                animator.SetBool("IdleAim", false);
+                animator.SetBool("RifleWalk", false);
+                animator.SetBool("Walk", false);
+            }
 
-
-            TPSCam.SetActive(true);
-            TPSCanvas.SetActive(true);
-            AimCam.SetActive(false);
-            AimCanvas.SetActive(false);
+            SetCameraState(false);
         }
+    }
+
+    private void SetCameraState(bool aiming)
+    {
+        if (TPSCam != null) TPSCam.SetActive(!aiming);
+        if (TPSCanvas != null) TPSCanvas.SetActive(!aiming);
+        if (AimCam != null) AimCam.SetActive(aiming);
+        if (AimCanvas != null) AimCanvas.SetActive(aiming);
     }
 }

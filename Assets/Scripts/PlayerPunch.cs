@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerPunch : MonoBehaviour
@@ -9,30 +7,22 @@ public class PlayerPunch : MonoBehaviour
     public float giveDamageOf = 10f;
     public float punchRange = 5f;
 
-
     public void Punch()
     {
-        RaycastHit hitInfo;
+        if (cam == null) return;
 
-        if (Physics.Raycast(cam.transform.position, cam.transform.forward, out hitInfo, punchRange))
-        {
-            Debug.Log(hitInfo.transform.name);
-            ObjectToHit objectToHit = hitInfo.transform.GetComponent<ObjectToHit>();
-            Zombie1 zombie1 = hitInfo.transform.GetComponent<Zombie1>();
-            StandingZombie Standingzombie = hitInfo.transform.GetComponent<StandingZombie>();
+        if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hitInfo, punchRange))
+            return;
 
-            if (objectToHit != null)
-            {
-                objectToHit.ObjectHitDamage(giveDamageOf);
-            }
-            else if(zombie1 != null)
-            {
-                zombie1.zombieHitDamage(giveDamageOf);
-            }
-            else if(Standingzombie != null)
-            {
-                Standingzombie.zombieHitDamage(giveDamageOf);
-            }
-        }
+        ObjectToHit objectToHit = hitInfo.transform.GetComponentInParent<ObjectToHit>();
+        Zombie1 zombie1 = hitInfo.transform.GetComponentInParent<Zombie1>();
+        StandingZombie standingZombie = hitInfo.transform.GetComponentInParent<StandingZombie>();
+
+        if (objectToHit != null)
+            objectToHit.ObjectHitDamage(giveDamageOf);
+        else if (zombie1 != null)
+            zombie1.zombieHitDamage(giveDamageOf);
+        else if (standingZombie != null)
+            standingZombie.zombieHitDamage(giveDamageOf);
     }
 }
