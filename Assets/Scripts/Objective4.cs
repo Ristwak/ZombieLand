@@ -1,18 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class Objective4 : MonoBehaviour
 {
     public ObjectivesComplete objectivesComplete;
+    private bool completed;
+
     private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.tag == "Vehicle")
-        {
+        if (completed || !other.CompareTag("Vehicle")) return;
+
+        completed = true;
+
+        if (objectivesComplete != null)
             objectivesComplete.GetObjectivesDone4(true);
-            
-            SceneManager.LoadScene("MainMenu");
-        }
+
+        SceneManager.LoadScene("MainMenu");
     }
 }

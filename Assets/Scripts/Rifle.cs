@@ -32,48 +32,71 @@ public class Rifle : MonoBehaviour
     public AudioClip shootingSound;
     public AudioClip reloadingSound;
 
+    private float originalPlayerSpeed;
+    private float originalPlayerSprint;
+    private bool hasSavedPlayerSpeed;
+    private Coroutine ammoOutRoutine;
+
     private void Awake()
     {
-        // We used this so that the rifle sticks to the player hand
-        transform.SetParent(hand);
-        presentAmmunition = maxAmmunition;
-        RifleUI.SetActive(true);
+        if (hand != null) transform.SetParent(hand);
+        presentAmmunition = Mathf.Max(0, maxAmmunition);
+        if (RifleUI != null) RifleUI.SetActive(true);
+
+        if (player != null)
+        {
+            originalPlayerSpeed = player.playerSpeed;
+            originalPlayerSprint = player.playerSprint;
+            hasSavedPlayerSpeed = true;
+        }
     }
 
     private void Update()
     {
-        if (setReloading == true)
-        {
-            return;
-        }
+        if (setReloading) return;
 
         if (presentAmmunition <= 0)
         {
-            StartCoroutine(Reload());
+            if (mag > 0) StartCoroutine(Reload());
+            else ShowAmmoOut();
             return;
         }
 
-        if (Input.GetButton("Fire1") && Time.time >= nextTimeToShoot)
+        bool firing = Input.GetButton("Fire1");
+        bool aiming = Input.GetButton("Fire2");
+        bool moving = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+
+        if (firing && Time.time >= nextTimeToShoot)
         {
-            animator.SetBool("Idle", false);
-            animator.SetBool("Fire", true);
-            nextTimeToShoot = Time.time + 1 / fireCharge;
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("Fire", true);
+            }
+
+            nextTimeToShoot = Time.time + 1f / Mathf.Max(0.01f, fireCharge);
             Shoot();
         }
-        else if (Input.GetButton("Fire1") && Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+        else if (firing && aiming && moving)
         {
-            animator.SetBool("Idle", false);
-            animator.SetBool("FireWalk", true);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("FireWalk", true);
+                animator.SetBool("IdleAim", true);
+                animator.SetBool("Walk", true);
+                animator.SetBool("Reloading", false);
+            }
         }
-        else if (Input.GetButton("Fire1") && Input.GetButton("Fire2"))
+        else if (firing && moving)
         {
-            animator.SetBool("Idle", false);
-            animator.SetBool("FireWalk", true);
-            animator.SetBool("IdleAim", true);
-            animator.SetBool("Walk", true);
-            animator.SetBool("Reloading", false);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("FireWalk", true);
+            }
         }
-        else
+        else if (animator != null)
         {
             animator.SetBool("Idle", true);
             animator.SetBool("FireWalk", false);
@@ -83,90 +106,111 @@ public class Rifle : MonoBehaviour
 
     private void Shoot()
     {
-        // Check for mag
-        if (mag == 0)
-        {
-            // Show ammo out text
-            StartCoroutine(showAmmoOut());
-            return;
-        }
+        if (presentAmmunition <= 0) return;
 
         presentAmmunition--;
 
-        if (presentAmmunition == 0)
-        {
-            mag--;
-        }
+        if (presentAmmunition == 0 && mag > 0) mag--;
 
-        // Updating the UI
         UpdateUI();
 
-        muzzleSpark.Play();
-        audioSource.PlayOneShot(shootingSound);
+        if (muzzleSpark != null) muzzleSpark.Play();
+        if (audioSource != null && shootingSound != null) audioSource.PlayOneShot(shootingSound);
 
-        RaycastHit hitInfo;
+        if (cam == null) return;
 
-        if (Physics.Raycast(cam.transform.position, cam.transform.forward, out hitInfo, shootingRange))
+        if (Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hitInfo, shootingRange))
         {
-            Debug.Log(hitInfo.transform.name);
-            ObjectToHit objectToHit = hitInfo.transform.GetComponent<ObjectToHit>();
-            Zombie1 zombie1 = hitInfo.transform.GetComponent<Zombie1>();
-            StandingZombie Standingzombie = hitInfo.transform.GetComponent<StandingZombie>();
+            ObjectToHit objectToHit = hitInfo.transform.GetComponentInParent<ObjectToHit>();
+            Zombie1 zombie1 = hitInfo.transform.GetComponentInParent<Zombie1>();
+            StandingZombie standingZombie = hitInfo.transform.GetComponentInParent<StandingZombie>();
 
             if (objectToHit != null)
             {
                 objectToHit.ObjectHitDamage(giveDamageOf);
-                GameObject WoodGo = Instantiate(woodenEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(WoodGo, 1f);
+                SpawnEffect(woodenEffect, hitInfo);
             }
             else if (zombie1 != null)
             {
                 zombie1.zombieHitDamage(giveDamageOf);
-                GameObject goreEffectGo = Instantiate(goreEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(goreEffectGo, 1f);
+                SpawnEffect(goreEffect, hitInfo);
             }
-            else if (Standingzombie != null)
+            else if (standingZombie != null)
             {
-                Standingzombie.zombieHitDamage(giveDamageOf);
-                GameObject goreEffectGo = Instantiate(goreEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(goreEffectGo, 1f);
+                standingZombie.zombieHitDamage(giveDamageOf);
+                SpawnEffect(goreEffect, hitInfo);
             }
         }
     }
 
+    private void SpawnEffect(GameObject effect, RaycastHit hitInfo)
+    {
+        if (effect == null) return;
+        GameObject spawned = Instantiate(effect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
+        Destroy(spawned, 1f);
+    }
+
     private IEnumerator Reload()
     {
-        player.playerSprint = 0;
+        if (setReloading || mag <= 0 || presentAmmunition > 0) yield break;
+
         setReloading = true;
-        Debug.Log("Reloading.......");
-        audioSource.PlayOneShot(reloadingSound);
 
+        if (player != null)
+        {
+            player.playerSprint = 0f;
+        }
 
-        animator.SetBool("Reloading", true);
+        if (audioSource != null && reloadingSound != null) audioSource.PlayOneShot(reloadingSound);
+        if (animator != null) animator.SetBool("Reloading", true);
 
         yield return new WaitForSeconds(reloadingTime);
-        // Play animation
-        animator.SetBool("Reloading", false);
 
-        presentAmmunition = maxAmmunition;
-        player.playerSpeed = 1.9f;
-        player.playerSprint = 3f;
+        presentAmmunition = Mathf.Max(0, maxAmmunition);
+
+        if (animator != null) animator.SetBool("Reloading", false);
+
+        if (player != null && hasSavedPlayerSpeed)
+        {
+            player.playerSpeed = originalPlayerSpeed;
+            player.playerSprint = originalPlayerSprint;
+        }
+
         setReloading = false;
-
-        // Update UI after reloading
         UpdateUI();
     }
 
     private void UpdateUI()
     {
+        if (AmmoCount.occurence == null) return;
+
         AmmoCount.occurence.AmmoText(presentAmmunition);
         AmmoCount.occurence.MagText(mag);
+    }
+
+    private void ShowAmmoOut()
+    {
+        if (ammoOut == null || ammoOutRoutine != null) return;
+        ammoOutRoutine = StartCoroutine(showAmmoOut());
     }
 
     IEnumerator showAmmoOut()
     {
         ammoOut.SetActive(true);
         yield return new WaitForSeconds(5f);
-        ammoOut.SetActive(false);
+
+        if (ammoOut != null) ammoOut.SetActive(false);
+        ammoOutRoutine = null;
+    }
+
+    private void OnDisable()
+    {
+        if (player != null && hasSavedPlayerSpeed)
+        {
+            player.playerSpeed = originalPlayerSpeed;
+            player.playerSprint = originalPlayerSprint;
+        }
+
+        setReloading = false;
     }
 }

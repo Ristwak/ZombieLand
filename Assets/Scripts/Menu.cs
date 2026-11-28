@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,66 +10,80 @@ public class Menu : MonoBehaviour
 
     public static bool GameIsStopped = false;
 
+    private bool isPaused;
+    private bool showingObjectives;
+
+    private void Start()
+    {
+        Time.timeScale = 1f;
+        GameIsStopped = false;
+        isPaused = false;
+        showingObjectives = false;
+        SetCursor(false);
+    }
+
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            if (GameIsStopped)
-            {
-                Resume();
-                Cursor.lockState = CursorLockMode.Locked;
-            }
-            else
-            {
-                Pause();
-                Cursor.lockState = CursorLockMode.None;
-            }
+            if (isPaused || showingObjectives) Resume();
+            else Pause();
         }
-        else if(Input.GetKeyDown("m"))
+        else if (Input.GetKeyDown(KeyCode.M))
         {
-            if(GameIsStopped)
-            {
-                removeObjectives();
-                Cursor.lockState = CursorLockMode.Locked;
-            }
-            else
-            {
-                ShowObjectives();
-                Cursor.lockState = CursorLockMode.None;
-            }
+            if (isPaused) return;
+
+            if (showingObjectives) removeObjectives();
+            else ShowObjectives();
         }
     }
 
     public void ShowObjectives()
     {
-        ObjectiveMenuUI.SetActive(true);
+        if (isPaused) return;
+
+        showingObjectives = true;
+        if (ObjectiveMenuUI != null) ObjectiveMenuUI.SetActive(true);
+
         Time.timeScale = 0f;
         GameIsStopped = true;
+        SetCursor(true);
     }
 
     public void removeObjectives()
     {
-        ObjectiveMenuUI.SetActive(false);
+        showingObjectives = false;
+        if (ObjectiveMenuUI != null) ObjectiveMenuUI.SetActive(false);
+
         Time.timeScale = 1f;
         GameIsStopped = false;
-        Cursor.lockState = CursorLockMode.Locked;
+        SetCursor(false);
     }
 
     public void Resume()
     {
-        pauseMenuUI.SetActive(false);
+        isPaused = false;
+        showingObjectives = false;
+
+        if (pauseMenuUI != null) pauseMenuUI.SetActive(false);
+        if (ObjectiveMenuUI != null) ObjectiveMenuUI.SetActive(false);
+
         Time.timeScale = 1f;
         GameIsStopped = false;
-        Cursor.lockState = CursorLockMode.Locked;
+        SetCursor(false);
     }
 
     public void Restart()
     {
+        Time.timeScale = 1f;
+        GameIsStopped = false;
         SceneManager.LoadScene("MainMenu");
     }
 
     public void LoadMenu()
     {
+        Time.timeScale = 1f;
+        GameIsStopped = false;
         SceneManager.LoadScene("MainMenu");
     }
 
@@ -83,8 +95,25 @@ public class Menu : MonoBehaviour
 
     public void Pause()
     {
-        pauseMenuUI.SetActive(true);
+        isPaused = true;
+
+        if (pauseMenuUI != null) pauseMenuUI.SetActive(true);
+        if (ObjectiveMenuUI != null) ObjectiveMenuUI.SetActive(false);
+
         Time.timeScale = 0f;
         GameIsStopped = true;
+        SetCursor(true);
+    }
+
+    private void SetCursor(bool visible)
+    {
+        Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = visible;
+    }
+
+    private void OnDisable()
+    {
+        Time.timeScale = 1f;
+        GameIsStopped = false;
     }
 }

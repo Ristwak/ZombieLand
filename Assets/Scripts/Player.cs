@@ -36,53 +36,62 @@ public class Player : MonoBehaviour
     public AudioSource audioSource;
     public AudioClip hurt;
 
+    private bool isDead;
+    private Coroutine damageRoutine;
+
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         presentHealth = playerHealth;
-        healthBar.GiveFullHealth(playerHealth);
+        if (healthBar != null) healthBar.GiveFullHealth(playerHealth);
     }
 
     private void Update()
     {
-        onSurface = Physics.CheckSphere(surfaceCheck.position, surfaceDistance, surfaceMask);
+        if (isDead || cc == null) return;
 
-        if (onSurface && velocity.y < 0)
-        {
-            velocity.y = -2f;
-        }
+        if (surfaceCheck != null)
+            onSurface = Physics.CheckSphere(surfaceCheck.position, surfaceDistance, surfaceMask);
+
+        if (onSurface && velocity.y < 0) velocity.y = -2f;
 
         velocity.y += gravity * Time.deltaTime;
         cc.Move(velocity * Time.deltaTime);
+
         PlayerMove();
         Jump();
-        Sprint();
     }
 
     void PlayerMove()
     {
-        float horizontal_axis = Input.GetAxis("Horizontal");
-        float vertical_axis = Input.GetAxis("Vertical");
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+        Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
-        Vector3 direction = new Vector3(horizontal_axis, 0f, vertical_axis).normalized;
+        bool sprinting = Input.GetButton("Sprint") && Input.GetKey(KeyCode.W) && onSurface;
+        float speed = sprinting ? playerSprint : playerSpeed;
 
         if (direction.magnitude >= 0.1f)
         {
-            animator.SetBool("Idle", false);
-            animator.SetBool("Walk", true);
-            animator.SetBool("Running", false);
-            animator.SetBool("RifleWalk", false);
-            animator.SetBool("IdleAim", false);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetBool("Walk", !sprinting);
+                animator.SetBool("Running", sprinting);
+                animator.SetBool("RifleWalk", false);
+                animator.SetBool("IdleAim", false);
+            }
 
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + playerCamera.eulerAngles.y;
-
-            Quaternion rotation = Quaternion.Euler(0f, targetAngle, 0f);
-            transform.rotation = Quaternion.Lerp(transform.rotation, rotation, Time.deltaTime * 10f);
-
-            Vector3 moveDirection = rotation * Vector3.forward;
-            cc.Move(moveDirection.normalized * playerSpeed * Time.deltaTime);
+            if (playerCamera != null)
+            {
+                float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + playerCamera.eulerAngles.y;
+                Quaternion rotation = Quaternion.Euler(0f, targetAngle, 0f);
+                transform.rotation = Quaternion.Lerp(transform.rotation, rotation, Time.deltaTime * 10f);
+                Vector3 moveDirection = rotation * Vector3.forward;
+                cc.Move(moveDirection.normalized * speed * Time.deltaTime);
+            }
         }
-        else
+        else if (animator != null)
         {
             animator.SetBool("Idle", true);
             animator.SetBool("Walk", false);
@@ -94,71 +103,53 @@ public class Player : MonoBehaviour
     {
         if (Input.GetButtonDown("Jump") && onSurface)
         {
-            animator.SetBool("Idle", false);
-            animator.SetTrigger("Jump");
-            velocity.y = Mathf.Sqrt(jumpRange * -2 * gravity);
+            if (animator != null)
+            {
+                animator.SetBool("Idle", false);
+                animator.SetTrigger("Jump");
+            }
+
+            velocity.y = Mathf.Sqrt(jumpRange * -2f * gravity);
         }
-        else
+        else if (animator != null)
         {
-            animator.SetBool("Idle", true);
             animator.ResetTrigger("Jump");
-        }
-    }
-
-    void Sprint()
-    {
-        if (Input.GetButton("Sprint") && Input.GetKey(KeyCode.W) && onSurface)
-        {
-            float horizontal_axis = Input.GetAxis("Horizontal");
-            float vertical_axis = Input.GetAxis("Vertical");
-
-            Vector3 direction = new Vector3(horizontal_axis, 0f, vertical_axis).normalized;
-
-            if (direction.magnitude >= 0.1f)
-            {
-                animator.SetBool("Walk", false);
-                animator.SetBool("Running", true);
-
-                float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + playerCamera.eulerAngles.y;
-
-                Quaternion rotation = Quaternion.Euler(0f, targetAngle, 0f);
-                transform.rotation = Quaternion.Lerp(transform.rotation, rotation, Time.deltaTime * 10f);
-
-                Vector3 moveDirection = rotation * Vector3.forward;
-                cc.Move(moveDirection.normalized * playerSprint * Time.deltaTime);
-            }
-            else
-            {
-                animator.SetBool("Walk", true);
-                animator.SetBool("Running", false);
-            }
         }
     }
 
     public void PlayerHitDamage(float takeDamage)
     {
-        presentHealth -= takeDamage;
-        StartCoroutine(PlayerDamage());
+        if (isDead || takeDamage <= 0f) return;
 
-        audioSource.PlayOneShot(hurt);
-        healthBar.SetHealth(presentHealth);
-        if (presentHealth <= 0)
-        {
-            PlayerDie();
-        }
+        presentHealth = Mathf.Max(0f, presentHealth - takeDamage);
+
+        if (damageRoutine != null) StopCoroutine(damageRoutine);
+        if (playerDamage != null) damageRoutine = StartCoroutine(PlayerDamage());
+
+        if (audioSource != null && hurt != null) audioSource.PlayOneShot(hurt);
+        if (healthBar != null) healthBar.SetHealth(presentHealth);
+
+        if (presentHealth <= 0f) PlayerDie();
     }
 
     void PlayerDie()
     {
-        EndGameMenuUi.SetActive(true);
+        if (isDead) return;
+        isDead = true;
+
+        if (EndGameMenuUi != null) EndGameMenuUi.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
-        Object.Destroy(gameObject, 1.0f);
+
+        if (cc != null) cc.enabled = false;
+        Destroy(gameObject, 1f);
     }
 
     IEnumerator PlayerDamage()
     {
         playerDamage.SetActive(true);
         yield return new WaitForSeconds(2.18f);
-        playerDamage.SetActive(false);
+
+        if (playerDamage != null) playerDamage.SetActive(false);
+        damageRoutine = null;
     }
 }

@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class HealthBoost : MonoBehaviour
@@ -16,21 +14,28 @@ public class HealthBoost : MonoBehaviour
     [Header("Health Animation")]
     public Animator animator;
 
+    private bool collected;
+
     private void Update()
     {
-        if(Vector3.Distance(transform.position, player.transform.position) < radius)
-        {
-            if(Input.GetKeyDown("f"))
-            {
-                animator.SetBool("Open",true);
-                player.presentHealth = healthToGive;
+        if (collected || player == null) return;
 
-                // sound effect
-                audioSource.PlayOneShot(healthBoostSound);
+        if (Vector3.Distance(transform.position, player.transform.position) >= radius) return;
+        if (!Input.GetKeyDown(KeyCode.F)) return;
 
+        collected = true;
 
-                Object.Destroy(gameObject,1.5f);
-            }
-        }
+        if (animator != null) animator.SetBool("Open", true);
+
+        // Preserve original 120 HP boost behaviour.
+        player.presentHealth = Mathf.Max(player.presentHealth, healthToGive);
+
+        if (player.healthBar != null)
+            player.healthBar.SetHealth(player.presentHealth);
+
+        if (audioSource != null && healthBoostSound != null)
+            audioSource.PlayOneShot(healthBoostSound);
+
+        Destroy(gameObject, 1.5f);
     }
 }

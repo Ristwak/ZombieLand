@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Animations;
 
 public class VehicleController : MonoBehaviour
 {
@@ -50,65 +48,76 @@ public class VehicleController : MonoBehaviour
     [Header("Rifle Effect")]
     public GameObject woodenEffect;
 
+    private readonly HashSet<int> hitObjects = new HashSet<int>();
+
     private void Update()
     {
-        if (Vector3.Distance(transform.position, player.transform.position) < radius)
+        if (player == null) return;
+
+        if (!isOpened && Vector3.Distance(transform.position, player.transform.position) < radius)
         {
-            if (Input.GetKeyDown("f"))
+            if (Input.GetKeyDown(KeyCode.F))
             {
                 isOpened = true;
                 radius = 5000f;
 
-                //objective completed
-                objectivesComplete.GetObjectivesDone3(true);
-            }
-            else if (isOpened == true && Input.GetKeyDown("g"))
-            {
-                player.transform.position = vehicleDoor.transform.position;
-                isOpened = false;
-                radius = 5f;
+                if (objectivesComplete != null)
+                    objectivesComplete.GetObjectivesDone3(true);
             }
         }
-
-        if (isOpened == true)
+        else if (isOpened && Input.GetKeyDown(KeyCode.G))
         {
-            ThirdPersonCam.SetActive(false);
-            ThirdPersonCanvas.SetActive(false);
-            AimCam.SetActive(false);
-            AimCanvas.SetActive(false);
-            PlayerCharacter.SetActive(false);
-
-            MoveVehicle();
-            VehicleSteering();
-            ApplyBrakes();
-            HitZombies();
-        }
-        else if(isOpened == false)
-        {
-            ThirdPersonCam.SetActive(true);
-            ThirdPersonCanvas.SetActive(true);
-            AimCam.SetActive(true);
-            AimCanvas.SetActive(true);
-            PlayerCharacter.SetActive(true);
+            ExitVehicle();
         }
 
+        SetPlayerAndCameraState();
+
+        if (!isOpened) return;
+
+        MoveVehicle();
+        VehicleSteering();
+        ApplyBrakes();
+        HitZombies();
     }
+
+    private void ExitVehicle()
+    {
+        if (vehicleDoor != null) player.transform.position = vehicleDoor.position;
+
+        isOpened = false;
+        radius = 5f;
+        presentAcceleration = 0f;
+        ApplyBrakes();
+    }
+
+    private void SetPlayerAndCameraState()
+    {
+        bool driving = isOpened;
+
+        if (ThirdPersonCam != null) ThirdPersonCam.SetActive(!driving);
+        if (ThirdPersonCanvas != null) ThirdPersonCanvas.SetActive(!driving);
+        if (AimCam != null) AimCam.SetActive(!driving);
+        if (AimCanvas != null) AimCanvas.SetActive(!driving);
+        if (PlayerCharacter != null) PlayerCharacter.SetActive(!driving);
+    }
+
     void MoveVehicle()
     {
+        presentAcceleration = accelerationForce * -Input.GetAxis("Vertical");
+
         FrontRightWheelCollider.motorTorque = presentAcceleration;
         FrontLeftWheelCollider.motorTorque = presentAcceleration;
         BackRightWheelCollider.motorTorque = presentAcceleration;
         BackLeftWheelCollider.motorTorque = presentAcceleration;
-        presentAcceleration = accelerationForce * -Input.GetAxis("Vertical");
     }
 
     void VehicleSteering()
     {
         presentTurnAngle = wheelsTorque * Input.GetAxis("Horizontal");
+
         FrontRightWheelCollider.steerAngle = presentTurnAngle;
         FrontLeftWheelCollider.steerAngle = presentTurnAngle;
 
-        // animate the wheels
         SteeringWheels(FrontRightWheelCollider, FrontRightWheelTransformer);
         SteeringWheels(FrontLeftWheelCollider, FrontLeftWheelTransformer);
         SteeringWheels(BackRightWheelCollider, BackRightWheelTransformer);
@@ -117,58 +126,65 @@ public class VehicleController : MonoBehaviour
 
     void SteeringWheels(WheelCollider WC, Transform WT)
     {
-        Vector3 position;
-        Quaternion rotation;
+        if (WC == null || WT == null) return;
 
-        WC.GetWorldPose(out position, out rotation);
-
+        WC.GetWorldPose(out Vector3 position, out Quaternion rotation);
         WT.position = position;
         WT.rotation = rotation;
     }
 
     void ApplyBrakes()
     {
-        if (Input.GetKey(KeyCode.Space))
-            presentBrakeForce = brakeForce;
-        else
-            presentBrakeForce = 0f;
+        presentBrakeForce = Input.GetKey(KeyCode.Space) ? brakeForce : 0f;
 
-        FrontRightWheelCollider.brakeTorque = presentBrakeForce;
-        FrontLeftWheelCollider.brakeTorque = presentBrakeForce;
-        BackRightWheelCollider.brakeTorque = presentBrakeForce;
-        BackLeftWheelCollider.brakeTorque = presentBrakeForce;
+        if (FrontRightWheelCollider != null) FrontRightWheelCollider.brakeTorque = presentBrakeForce;
+        if (FrontLeftWheelCollider != null) FrontLeftWheelCollider.brakeTorque = presentBrakeForce;
+        if (BackRightWheelCollider != null) BackRightWheelCollider.brakeTorque = presentBrakeForce;
+        if (BackLeftWheelCollider != null) BackLeftWheelCollider.brakeTorque = presentBrakeForce;
     }
 
     void HitZombies()
     {
-        RaycastHit hitInfo;
+        if (cam == null) return;
 
-        if (Physics.Raycast(cam.transform.position, cam.transform.forward, out hitInfo, hitRange))
+        if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hitInfo, hitRange))
         {
-            Zombie1 zombie1 = hitInfo.transform.GetComponent<Zombie1>();
-            ObjectToHit objectToHit = hitInfo.transform.GetComponent<ObjectToHit>();
-            StandingZombie Standingzombie = hitInfo.transform.GetComponent<StandingZombie>();
-
-            if (objectToHit != null)
-            {
-                objectToHit.ObjectHitDamage(giveDamageOf);
-                GameObject WoodGo = Instantiate(woodenEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(WoodGo, 1f);
-            }
-            else if(zombie1 != null)
-            {
-                zombie1.zombieHitDamage(giveDamageOf);
-                zombie1.GetComponent<CapsuleCollider>().enabled = false;
-                GameObject goreEffectGo = Instantiate(goreEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(goreEffectGo, 1f);
-            }
-            else if(Standingzombie != null)
-            {
-                Standingzombie.zombieHitDamage(giveDamageOf);
-                Standingzombie  .GetComponent<CapsuleCollider>().enabled = false;
-                GameObject goreEffectGo = Instantiate(goreEffect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
-                Destroy(goreEffectGo, 1f);
-            }
+            hitObjects.Clear();
+            return;
         }
+
+        Zombie1 zombie1 = hitInfo.transform.GetComponentInParent<Zombie1>();
+        StandingZombie standingZombie = hitInfo.transform.GetComponentInParent<StandingZombie>();
+        ObjectToHit objectToHit = hitInfo.transform.GetComponentInParent<ObjectToHit>();
+
+        Component target = zombie1 != null ? (Component)zombie1 :
+                           standingZombie != null ? standingZombie :
+                           objectToHit;
+
+        if (target == null || !hitObjects.Add(target.gameObject.GetInstanceID())) return;
+
+        if (objectToHit != null)
+        {
+            objectToHit.ObjectHitDamage(giveDamageOf);
+            SpawnEffect(woodenEffect, hitInfo);
+        }
+        else if (zombie1 != null)
+        {
+            zombie1.zombieHitDamage(giveDamageOf);
+            SpawnEffect(goreEffect, hitInfo);
+        }
+        else if (standingZombie != null)
+        {
+            standingZombie.zombieHitDamage(giveDamageOf);
+            SpawnEffect(goreEffect, hitInfo);
+        }
+    }
+
+    private void SpawnEffect(GameObject effect, RaycastHit hitInfo)
+    {
+        if (effect == null) return;
+
+        GameObject spawned = Instantiate(effect, hitInfo.point, Quaternion.LookRotation(hitInfo.normal));
+        Destroy(spawned, 1f);
     }
 }
